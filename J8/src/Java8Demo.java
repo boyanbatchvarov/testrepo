@@ -79,6 +79,20 @@ public class Java8Demo extends TestBase {
 		});
 	}
 
+	@Test
+	public void getAnyBigSalaryWithResult() {
+		runTrackedFunction(() -> {
+			return foos.stream().map(f -> f.getSalary()).filter(s -> s > 50).findAny().orElse(-1.);
+		});
+	}
+
+	@Test
+	public void getAnyBigSalaryWithResultParallel() {
+		runTrackedFunction(() -> {
+			return foos.parallelStream().map(f -> f.getSalary()).filter(s -> s > 50).findAny().orElse(-1.);
+		});
+	}
+
 	// TODO: @BB move to tests
 	// // endlessInts();
 	// // numbers();
