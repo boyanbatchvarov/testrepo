@@ -2,6 +2,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -9,13 +12,13 @@ import java.util.stream.Stream;
 import org.junit.Before;
 import org.junit.Test;
 
-public class Java8Demo extends TestBase {
+public class Temp extends TestBase {
 
 	private List<Foo> foos = new ArrayList<>();
 
 	@Before
 	public void setUp() {
-		runTrackedAction(() -> {
+		runTracked(() -> {
 			List<Foo> tempFoos = FooFactory.generateFoos(100);
 			foos = Collections.unmodifiableList(tempFoos);
 		});
@@ -23,101 +26,96 @@ public class Java8Demo extends TestBase {
 
 	@Test
 	public void printSalaries() {
-		runTrackedAction(() -> foos.stream().forEach(f -> System.out.println(f.toString())));
+		foos.stream().forEach(f -> System.out.println(f.toString()));
+	}
+
+	@Test
+	public void getBigSalaries() {
+		foos.stream().filter(f -> f.getSalary() > 10000).distinct();
+	}
+
+	@Test
+	public void getBigEarners() {
+		foos.stream().filter(f -> f.getSalary() > 10000).map(f -> f.getName()).sorted().limit(10).collect(Collectors.toList());
+	}
+
+	@Test
+	public void doubleSalaries() {
+		foos.stream().forEach(f -> f.setSalary(f.getSalary() * 2));
+		printSalaries();
+	}
+
+	@Test
+	public void printSalariesTracked() {
+		runTracked(() -> foos.stream().forEach(f -> System.out.println(f.toString())));
 	}
 
 	@Test
 	public void printSalariesParallel() {
-		runTrackedAction(() -> foos.parallelStream().forEach(f -> System.out.println(f.toString())));
+		runTracked(() -> foos.parallelStream().forEach(f -> System.out.println(f.toString())));
 	}
 
 	@Test
 	public void getSalaries() {
-		runTrackedAction(() -> foos.stream().map(f -> f.getSalary()).collect(Collectors.toList()));
+		runTracked(() -> foos.stream().map(f -> f.getSalary()).collect(Collectors.toList()));
 	}
 
 	@Test
 	public void getSalariesParallel() {
-		runTrackedAction(() -> foos.parallelStream().map(f -> f.getSalary()).collect(Collectors.toList()));
+		runTracked(() -> foos.parallelStream().map(f -> f.getSalary()).collect(Collectors.toList()));
 	}
 
 	@Test
 	public void getSalariesSum() {
-		runTrackedAction(() -> foos.stream().map(f -> f.getSalary()).reduce((a, b) -> a + b));
+		runTracked(() -> foos.stream().map(f -> f.getSalary()).reduce((a, b) -> a + b));
 	}
 
 	@Test
 	public void getSalariesSumParallel() {
-		runTrackedAction(() -> foos.parallelStream().map(f -> f.getSalary()).reduce((a, b) -> a + b));
+		runTracked(() -> foos.parallelStream().map(f -> f.getSalary()).reduce((a, b) -> a + b));
 	}
 
 	@Test
 	public void getSalariesSumWithResult() {
-		runTrackedFunction(() -> {
+		runTracked(() -> {
 			return foos.stream().map(f -> f.getSalary()).reduce((a, b) -> a + b).get();
 		});
 	}
 
 	@Test
 	public void getSalariesSumWithResultParallel() {
-		runTrackedFunction(() -> {
+		runTracked(() -> {
 			return foos.parallelStream().map(f -> f.getSalary()).reduce((a, b) -> a + b).get();
 		});
 	}
 
 	@Test
 	public void getFirstBigSalaryWithResult() {
-		runTrackedFunction(() -> {
+		runTracked(() -> {
 			return foos.stream().map(f -> f.getSalary()).filter(s -> s > MILLION).findFirst().get();
 		});
 	}
 
 	@Test
 	public void getFirstBigSalaryWithResultParallel() {
-		runTrackedFunction(() -> {
+		runTracked(() -> {
 			return foos.parallelStream().map(f -> f.getSalary()).filter(s -> s > MILLION).findFirst().get();
 		});
 	}
 
 	@Test
 	public void getAnyBigSalaryWithResult() {
-		runTrackedFunction(() -> {
+		runTracked(() -> {
 			return foos.stream().map(f -> f.getSalary()).filter(s -> s > 50).findAny().orElse(-1.);
 		});
 	}
 
 	@Test
 	public void getAnyBigSalaryWithResultParallel() {
-		runTrackedFunction(() -> {
+		runTracked(() -> {
 			return foos.parallelStream().map(f -> f.getSalary()).filter(s -> s > 50).findAny().orElse(-1.);
 		});
 	}
-
-	// TODO: @BB move to tests
-	// // endlessInts();
-	// // numbers();
-	//
-	// List<Foo> foos = FooFactory.generateFoos(1000000);
-	//
-	// Date start = new Date();
-	//
-	// List<Double> sals2 = foos.stream().map(f -> f.getSalary()).collect(Collectors.toList());
-	//
-	// Date mid = new Date();
-	// System.out.println(mid.getTime() - start.getTime());
-	// List<Double> sals = foos.parallelStream().map(f -> f.getSalary()).collect(Collectors.toList());
-	//
-	// // getSalariesLoop(foos);
-	// // getTotalStreamsReduce(sals);
-	// // getTotalStreamsReduceParallel(sals);
-	// // getSalariesStreamsReduce(foos);
-	// // getSalariesStreamsReduceParallel(foos);
-	//
-	// // System.out.println(System.getProperty("java.runtime.version"));
-	//
-	// Date end = new Date();
-	// System.out.println(end.getTime() - mid.getTime());
-	// }
 
 	private static void getTotalStreamsReduce(List<Double> sals) {
 		Optional<Double> total = sals.stream().reduce((a, b) -> a + b);
@@ -134,6 +132,12 @@ public class Java8Demo extends TestBase {
 		System.out.println(cumSalaries.get().getSalary());
 	}
 
+	private static void getTotalSalaryWithReduce(List<Foo> foos) {
+		Optional<Double> total = foos.stream().map(f -> f.getSalary()).reduce((left, right) -> left + right);
+		System.out.println(total.get());
+	}
+
+	// @BB this accumulator doesn't look right
 	private static void getSalariesStreamsReduceParallel(List<Foo> foos) {
 		Optional<Foo> cumSalaries = foos.parallelStream().reduce((a, b) -> new Foo("all", a.getSalary() + b.getSalary()));
 		System.out.println(cumSalaries.get().getSalary());
@@ -161,5 +165,36 @@ public class Java8Demo extends TestBase {
 	private static void endlessInts() {
 		Stream<Integer> ones = Stream.generate(() -> 1);
 		ones.limit(10).forEach(i -> System.out.println(i));
+	}
+
+	@Test
+	public void testParallelCommonPool() {
+		// System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", "10");
+
+		runTracked(() -> {
+			foos.parallelStream().map(f -> runTrackedFunction(foo -> foo.getSalary(), f)).forEach(f -> System.out.println(f));
+		});
+	}
+
+	@Test
+	public void testParallelCustomPool() throws Exception {
+		runInParallelAndWait(
+				() -> foos.parallelStream().map(foo -> runTrackedFunction(f -> f.getSalary(), foo)).forEach(s -> System.out.println(s)));
+	}
+
+	public static void runInParallelAndWait(Runnable runnable) throws Exception {
+		ForkJoinPool pool = null;
+		final int parallelism = 100;
+
+		try {
+			pool = new ForkJoinPool(parallelism);
+			pool.submit(runnable).get(Long.MAX_VALUE, TimeUnit.HOURS);
+		} catch (InterruptedException | ExecutionException e) {
+			throw new RuntimeException(e);
+		} finally {
+			if (pool != null) {
+				pool.shutdown();
+			}
+		}
 	}
 }
